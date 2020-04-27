@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import json
 
+
 class ParamsManager(object):
     def __init__(self, params_file):
         """
@@ -8,24 +9,28 @@ class ParamsManager(object):
         :param params_file: Path to the parameters json file
         """
         self.params = json.load(open(params_file, 'r'))
+
     def get_params(self):
         """
         Returns all the parameters
         :return: The whole parameter dictionary
         """
         return self.params
+
     def get_env_params(self):
         """
         Returns the environment configuration parameters
         :return: A dictionary of configuration parameters used for the environment
         """
         return self.params['env']
+
     def get_agent_params(self):
         """
         Returns the hyper-parameters and configuration parameters used by the agent
         :return: A dictionary of parameters used by the agent
         """
         return self.params['agent']
+
     def update_agent_params(self, **kwargs):
         """
         Update the hyper-parameters (and configuration parameters) used by the agent
@@ -35,6 +40,7 @@ class ParamsManager(object):
         for key, value in kwargs.items():
             if key in self.params['agent'].keys():
                 self.params['agent'][key] = value
+
     def export_env_params(self, file_name):
         """
         Export the environment parameters to the specified file. Useful for logging experiment specific parameters
@@ -42,7 +48,7 @@ class ParamsManager(object):
         :return:
         """
         with open(file_name, 'w') as f:
-            json.dump(self.params['env'], f, indent=4, separators=(',',': '), sort_keys=True)
+            json.dump(self.params['env'], f, indent=4, separators=(',', ': '), sort_keys=True)
             # Adding a trailing newline for POSIX compatibility
             f.write("\n")
 

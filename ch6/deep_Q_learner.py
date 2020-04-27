@@ -34,10 +34,10 @@ args.add_argument("--recording-output-dir", help="Directory to store monitor out
                   default="./trained_models/results")
 args = args.parse_args()
 
-params_manager= ParamsManager(args.params_file)
+params_manager = ParamsManager(args.params_file)
 seed = params_manager.get_agent_params()['seed']
 summary_file_path_prefix = params_manager.get_agent_params()['summary_file_path_prefix']
-summary_file_path= summary_file_path_prefix + args.env+ "_" + datetime.now().strftime("%y-%m-%d-%H-%M")
+summary_file_path = summary_file_path_prefix + args.env + "_" + datetime.now().strftime("%y-%m-%d-%H-%M")
 writer = SummaryWriter(summary_file_path)
 # Export the parameters as json files to the log directory to keep track of the parameters used in each experiment
 params_manager.export_env_params(summary_file_path + "/" + "env_params.json")
@@ -68,10 +68,11 @@ class Deep_Q_Learner(object):
         self.params = params
         self.gamma = self.params['gamma']  # Agent's discount factor
         self.learning_rate = self.params['lr']  # Agent's Q-learning rate
-        self.best_mean_reward = - float("inf") # Agent's personal best mean episode reward
+        self.best_mean_reward = - float("inf")  # Agent's personal best mean episode reward
         self.best_reward = - float("inf")
         self.training_steps_completed = 0  # Number of training batch steps completed so far
 
+        # depends on the application (such as dimensional observation/state space), architecture for deep Q-learning is chosen
         if len(self.state_shape) == 1:  # Single dimensional observation/state space
             self.DQN = SLP
         elif len(self.state_shape) == 3:  # 3D/image observation/state
@@ -80,7 +81,8 @@ class Deep_Q_Learner(object):
         self.Q = self.DQN(state_shape, action_shape, device).to(device)
         self.Q.apply(utils.weights_initializer.xavier)
 
-        self.Q_optimizer = torch.optim.Adam(self.Q.parameters(), lr=self.learning_rate)
+        self.Q_optimizer = torch.optim.Adam(self.Q.parameters(),
+                                            lr=self.learning_rate)  # Adaptive Moment Estimation Optimization (adaptive learning rate), standard SGD requires carefully tuning
         if self.params['use_target_network']:
             self.Q_target = self.DQN(state_shape, action_shape, device).to(device)
         # self.policy is the policy followed by the agent. This agents follows
@@ -89,16 +91,17 @@ class Deep_Q_Learner(object):
         self.epsilon_max = params["epsilon_max"]
         self.epsilon_min = params["epsilon_min"]
         self.epsilon_decay = LinearDecaySchedule(initial_value=self.epsilon_max,
-                                    final_value=self.epsilon_min,
-                                    max_steps= self.params['epsilon_decay_final_step'])
+                                                 final_value=self.epsilon_min,
+                                                 max_steps=self.params['epsilon_decay_final_step'])
         self.step_num = 0
 
-        self.memory = ExperienceMemory(capacity=int(self.params['experience_memory_capacity']))  # Initialize an Experience memory with 1M capacity
+        self.memory = ExperienceMemory(
+            capacity=int(self.params['experience_memory_capacity']))  # Initialize an Experience memory with 1M capacity
 
     def get_action(self, observation):
         observation = np.array(observation)  # Observations could be lazy frames. So force fetch before moving forward
         observation = observation / 255.0  # Scale/Divide by max limit of obs' dtype. 255 for uint8
-        if len(observation.shape) == 3: # Single image (not a batch)
+        if len(observation.shape) == 3:  # Single image (not a batch)
             if observation.shape[2] < observation.shape[0]:  # Probably observation is in W x H x C format
                 # NOTE: This is just an additional check. The env wrappers are taking care of this conversion already
                 # Reshape to C x H x W format as per PyTorch's convention
@@ -109,7 +112,7 @@ class Deep_Q_Learner(object):
     def epsilon_greedy_Q(self, observation):
         # Decay Epsilon/exploration as per schedule
         writer.add_scalar("DQL/epsilon", self.epsilon_decay(self.step_num), self.step_num)
-        self.step_num +=1
+        self.step_num += 1
         if random.random() < self.epsilon_decay(self.step_num) and not self.params["test"]:
             action = random.choice([i for i in range(self.action_shape)])
         else:
@@ -124,10 +127,12 @@ class Deep_Q_Learner(object):
             td_target = r + self.gamma * torch.max(self.Q(s_next))
         td_error = td_target - self.Q(s)[a]
         # Update Q estimate
-        #self.Q(s)[a] = self.Q(s)[a] + self.learning_rate * td_error
-        self.Q_optimizer.zero_grad()
-        td_error.backward()
-        self.Q_optimizer.step()
+        # self.Q(s)[a] = self.Q(s)[a] + self.learning_rate * td_error
+        self.Q_optimizer.zero_grad()  # clear gradient before back propagation, otherwise it will be accumulated (
+        # after calling .step())
+        td_error.backward()  # back propagation to update the weights of single layer perceptron (SLP)
+        self.Q_optimizer.step()  # step() method updates the parameters based on the current gradient, which is
+        # stored in .grad attribute of a parameter, and the update rule
 
     def learn_from_batch_experience(self, experiences):
         batch_xp = Experience(*zip(*experiences))
@@ -141,30 +146,38 @@ class Deep_Q_Learner(object):
         done_batch = np.array(batch_xp.done)
 
         if self.params['use_target_network']:
-            #if self.training_steps_completed % self.params['target_network_update_freq'] == 0:
+            # if self.training_steps_completed % self.params['target_network_update_freq'] == 0:
             if self.step_num % self.params['target_network_update_freq'] == 0:
                 # The *update_freq is the Num steps after which target net is updated.
                 # A schedule can be used instead to vary the update freq.
                 self.Q_target.load_state_dict(self.Q.state_dict())
             td_target = reward_batch + ~done_batch * \
-                np.tile(self.gamma, len(next_obs_batch)) * \
-                self.Q_target(next_obs_batch).max(1)[0].data.cpu().numpy()
+                        np.tile(self.gamma, len(next_obs_batch)) * \
+                        self.Q_target(next_obs_batch).max(1)[0].data.cpu().numpy()  # .cpu() convert data into cpu float-tensor, then .numpy() convert it into numpy type
+            # .tile() constructs a new array by repeating array the number of times we want to repeat as per repetitions (len(next_obs_batch))
         else:
             td_target = reward_batch + ~done_batch * \
-                np.tile(self.gamma, len(next_obs_batch)) * \
-                self.Q(next_obs_batch).detach().max(1)[0].data.cpu().numpy()
+                        np.tile(self.gamma, len(next_obs_batch)) * \
+                        self.Q(next_obs_batch).detach().max(1)[
+                            0].data.cpu().numpy()  # tensor.max(1)[0] returns the values, tensor.max(1)[0] returns the indices
+            # .detach() detaches the output from the computational graph, hence, no gradient will be back-propagated along this variable
 
-        td_target = torch.from_numpy(td_target).to(device)
+        td_target = torch.from_numpy(td_target).to(device)  # .from_numpy() Transform numpy array to PyTorch tensors, then .to() transforms it into gpu or cpu tensors
         action_idx = torch.from_numpy(action_batch).to(device)
-        td_error = torch.nn.functional.mse_loss( self.Q(obs_batch).gather(1, action_idx.view(-1, 1)),
-                                                       td_target.float().unsqueeze(1))
+        td_error = torch.nn.functional.mse_loss(self.Q(obs_batch).gather(1, action_idx.view(-1, 1)),
+                                                td_target.float().unsqueeze(1))
+        # .view() returns a new tensor that has the same number of elements with the original tensor;
+        # '-1' means the number of elements at the specified dimension is up to Torch, such that the number of elements should be guaranteed
+        # .gather() creates a new tensor from the input tensor by taking the values from each row along the input's selected dimension
+        # .mse_loss() the mean squared error (squared L2 norm) between each element in the input x and target y (element-wise)
+        # .unsqueeze() returns a new tensor with a dimension of size 1 which is inserted at the specified position
 
         self.Q_optimizer.zero_grad()
-        td_error.mean().backward()
+        td_error.mean().backward()  # back propagate mse error to update the weights
         writer.add_scalar("DQL/td_error", td_error.mean(), self.step_num)
-        self.Q_optimizer.step()
+        self.Q_optimizer.step()  # updates the parameters based on the current gradient, which is stored in .grad attribute of a parameter, and the update rule
 
-    def replay_experience(self, batch_size = None):
+    def replay_experience(self, batch_size=None):
         batch_size = batch_size if batch_size is not None else self.params['replay_batch_size']
         experience_batch = self.memory.sample(batch_size)
         self.learn_from_batch_experience(experience_batch)
@@ -180,7 +193,7 @@ class Deep_Q_Learner(object):
 
     def load(self, env_name):
         file_name = self.params['load_dir'] + "DQL_" + env_name + ".ptm"
-        agent_state = torch.load(file_name, map_location= lambda storage, loc: storage)
+        agent_state = torch.load(file_name, map_location=lambda storage, loc: storage)
         self.Q.load_state_dict(agent_state["Q"])
         self.Q.to(device)
         self.best_mean_reward = agent_state["best_mean_reward"]
@@ -244,26 +257,26 @@ if __name__ == "__main__":
         except FileNotFoundError:
             print("WARNING: No trained model found for this environment. Training from scratch.")
 
-    #for episode in range(agent_params['max_num_episodes']):
+    # for episode in range(agent_params['max_num_episodes']):
     episode = 0
     while global_step_num <= agent_params['max_training_steps']:
         obs = env.reset()
         cum_reward = 0.0  # Cumulative reward
         done = False
         step = 0
-        #for step in range(agent_params['max_steps_per_episode']):
+        # for step in range(agent_params['max_steps_per_episode']):
         while not done:
             if env_conf['render'] or args.render:
-                env.render()
+                env.render()  # Display environment
             action = agent.get_action(obs)
             next_obs, reward, done, info = env.step(action)
-            #agent.learn(obs, action, reward, next_obs, done)
+            # agent.learn(obs, action, reward, next_obs, done)
             agent.memory.store(Experience(obs, action, reward, next_obs, done))
 
             obs = next_obs
             cum_reward += reward
             step += 1
-            global_step_num +=1
+            global_step_num += 1
 
             if done is True:
                 episode += 1
@@ -278,7 +291,7 @@ if __name__ == "__main__":
                     agent.save(env_conf['env_name'])
                     num_improved_episodes_before_checkpoint = 0
                 print("\nEpisode#{} ended in {} steps. Per {} stats: reward ={} ; mean_reward={:.3f} best_reward={}".
-                      format(episode, step+1, rew_type, cum_reward, np.mean(episode_rewards), agent.best_reward))
+                      format(episode, step + 1, rew_type, cum_reward, np.mean(episode_rewards), agent.best_reward))
                 writer.add_scalar("main/ep_reward", cum_reward, global_step_num)
                 writer.add_scalar("main/mean_ep_reward", np.mean(episode_rewards), global_step_num)
                 writer.add_scalar("main/max_ep_rew", agent.best_reward, global_step_num)

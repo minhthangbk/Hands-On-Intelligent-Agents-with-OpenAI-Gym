@@ -9,7 +9,7 @@ import gym
 import numpy as np
 
 MAX_NUM_EPISODES = 50000
-STEPS_PER_EPISODE = 200 #  This is specific to MountainCar. May change with env
+STEPS_PER_EPISODE = 200  # This is specific to MountainCar. May change with env
 EPSILON_MIN = 0.005
 max_num_steps = MAX_NUM_EPISODES * STEPS_PER_EPISODE
 EPSILON_DECAY = 500 * EPSILON_MIN / max_num_steps
@@ -40,19 +40,20 @@ class Q_Learner(object):
     def get_action(self, obs):
         discretized_obs = self.discretize(obs)
         # Epsilon-Greedy action selection
-        if self.epsilon > EPSILON_MIN:
+        if self.epsilon > EPSILON_MIN:  # Reduce the exploration probability each iteration
             self.epsilon -= EPSILON_DECAY
-        if np.random.random() > self.epsilon:
-            return np.argmax(self.Q[discretized_obs])
-        else:  # Choose a random action
+        if np.random.random() > self.epsilon:  # e-greedy policy
+            return np.argmax(self.Q[discretized_obs])  # return the optimal action
+        else:  # Or Choose a random action
             return np.random.choice([a for a in range(self.action_shape)])
 
     def learn(self, obs, action, reward, next_obs):
-        discretized_obs = self.discretize(obs)
+        discretized_obs = self.discretize(obs)  # Update Q value
         discretized_next_obs = self.discretize(next_obs)
         td_target = reward + self.gamma * np.max(self.Q[discretized_next_obs])
-        td_error = td_target - self.Q[discretized_obs][action]
-        self.Q[discretized_obs][action] += self.alpha * td_error
+        td_error = td_target - self.Q[discretized_obs][action]  # Update temporal difference
+        self.Q[discretized_obs][action] += self.alpha * td_error  # Update Q value
+
 
 def train(agent, env):
     best_reward = -float('inf')
@@ -69,17 +70,17 @@ def train(agent, env):
         if total_reward > best_reward:
             best_reward = total_reward
         print("Episode#:{} reward:{} best_reward:{} eps:{}".format(episode,
-                                     total_reward, best_reward, agent.epsilon))
+                                                                   total_reward, best_reward, agent.epsilon))
     # Return the trained policy
     return np.argmax(agent.Q, axis=2)
 
 
-def test(agent, env, policy):
+def test_QLearner(agent1, env, policy):
     done = False
     obs = env.reset()
     total_reward = 0.0
     while not done:
-        action = policy[agent.discretize(obs)]
+        action = policy[agent1.discretize(obs)]
         next_obs, reward, done, info = env.step(action)
         obs = next_obs
         total_reward += reward
@@ -90,10 +91,9 @@ if __name__ == "__main__":
     env = gym.make('MountainCar-v0')
     agent = Q_Learner(env)
     learned_policy = train(agent, env)
-    # Use the Gym Monitor wrapper to evalaute the agent and record video
+    # Use the Gym Monitor wrapper to evaluate the agent and record video
     gym_monitor_path = "./gym_monitor_output"
     env = gym.wrappers.Monitor(env, gym_monitor_path, force=True)
     for _ in range(1000):
-        test(agent, env, learned_policy)
+        test_QLearner(agent, env, learned_policy)
     env.close()
-

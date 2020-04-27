@@ -16,6 +16,7 @@ class CNN(torch.nn.Module):
         super(CNN, self).__init__()
         self.device = device
         self.layer1 = torch.nn.Sequential(
+            # .Sequential() is designed to make it simple to build up a NN layer-by-layer
             torch.nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4, padding=0),
             torch.nn.ReLU()
         )
@@ -30,10 +31,10 @@ class CNN(torch.nn.Module):
         self.out = torch.nn.Linear(64 * 7 * 7, output_shape)
 
     def forward(self, x):
-        x = torch.from_numpy(x).float().to(self.device)
+        x = torch.from_numpy(x).float().to(self.device)  # Transform numpy tensor to device (CPU or GPU) tensor
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = x.view(x.shape[0], -1)
+        x = x.view(x.shape[0], -1)  # .view() reshapes x; .shape[0] returns the number of rows (first dimension); -1: Torch will determine the number of collumns
         x = self.out(x)
         return x

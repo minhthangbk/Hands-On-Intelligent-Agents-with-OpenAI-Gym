@@ -17,7 +17,7 @@ class ExperienceMemory(object):
         :return:
         """
         self.capacity = capacity
-        self.mem_idx = 0  # Index of the current experience
+        self.mem_idx = 0  # Index of the current experience where we will store new experiences when they arrive
         self.memory = []
 
     def store(self, experience):

@@ -5,6 +5,7 @@ class SLP(torch.nn.Module):
     """
     A Single Layer Perceptron (SLP) class to approximate functions
     """
+
     def __init__(self, input_shape, output_shape, device=torch.device("cpu")):
         """
         :param input_shape: Shape/dimension of the input
@@ -15,11 +16,12 @@ class SLP(torch.nn.Module):
         self.device = device
         self.input_shape = input_shape[0]
         self.hidden_shape = 40
-        self.linear1 = torch.nn.Linear(self.input_shape, self.hidden_shape)
+        self.linear1 = torch.nn.Linear(self.input_shape, self.hidden_shape)  # computes output from input using a
+        # linear function, and holds internal Tensors for its weight and bias
         self.out = torch.nn.Linear(self.hidden_shape, output_shape)
 
     def forward(self, x):
         x = torch.from_numpy(x).float().to(self.device)
-        x = torch.nn.functional.relu(self.linear1(x))
+        x = torch.nn.functional.relu(self.linear1(x))  # Rectified Linear Unit (ReLU) as the activation function
         x = self.out(x)
         return x
