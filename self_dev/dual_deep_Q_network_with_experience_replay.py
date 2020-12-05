@@ -134,7 +134,7 @@ class DQNAgent:
         return selected_action
 
     def update_model(self) -> torch.Tensor:  # return loss as Tensor data
-        samples = self.memory.sample_batch()  # random choose samples from ReplayBuffer memory
+        samples = self.memory.sample_batch()  # random choose samples from ReplayBuffer memory to remove the correlation of observations
         loss = self._compute_dqn_loss(samples)
 
         self.optimizer.zero_grad()  # Clear the old gradient before computing the new ones
